@@ -55,7 +55,7 @@ while True:
      # guarantee the timing of calls to read the sensor).
      # If this happens try again!
      if humidity is not None and temperature is not None:
-	 sttime = datetime.datetime.now().strftime('%x_%H:%M:%S ')
+#	 sttime = datetime.datetime.now().strftime('%x_%H:%M:%S ')
 #	 with open('templog.log','a') as logfile:
 #	      logfile.write(sttime + 'Temp={0:0.1f}*F Humidity={1:0.1f}%'.format(temperature, humidity) + '\n')
 	 try:
