@@ -24,7 +24,7 @@ import Adafruit_DHT
 import time
 import sys
 import datetime
-from Adafruit_IO import MQTTClient
+from Adafruit_IO import *
 
 
 def connected(client):
@@ -32,17 +32,18 @@ def connected(client):
     
 def clean_DH(humid, temp):    
 	if temp < 80 and temp > -40:
-        temp = temp * 1.8 + 32
-        temp = round(temp, 1)
-    else:
-        temp = None
+		temp = temp * 1.8 + 32
+        	temp = round(temp, 1)
+	else:
+ 		temp = None
     
-    if humid < 100 and humid > 1:
-        humid = round(humid, 1)
-    else:
-        humid = None
+	if humid < 100 and humid > 1:
+        	humid = round(humid, 1)
+    	else:
+        	humid = None
         
-    return humid, temp
+	
+	return humid, temp
     
 
 # Sensor should be set to Adafruit_DHT.DHT11,
@@ -66,10 +67,10 @@ pin = 17
 try:
 #	print('Attempting to connect')
 	mqtt.connect()
-    mqtt.loop_background()
+	mqtt.loop_background()
 except:
 #	print('Error Connecting')
-    connection_type = 'api_pub'
+	connection_type = 'api_pub'
 	pass	
 
 
@@ -88,8 +89,8 @@ while True:
      # the results will be null (because Linux can't
      # guarantee the timing of calls to read the sensor).
      # If this happens try again!
-    if humidity is not None and temperature is not None:
-        if connection_type == 'mqtt_pub':
+     if humidity is not None and temperature is not None:
+	if connection_type == 'mqtt_pub':
              try:
                 mqtt.publish('office-temperature', temperature)
                 mqtt.publish('office-humidity', humidity)
