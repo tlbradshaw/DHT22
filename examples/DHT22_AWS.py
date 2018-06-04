@@ -79,7 +79,7 @@ if not args.useWebsocket and (not args.certificatePath or not args.privateKeyPat
 
 # Configure logging
 logger = logging.getLogger("AWSIoTPythonSDK.core")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 streamHandler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 streamHandler.setFormatter(formatter)
@@ -175,4 +175,4 @@ while True:
             if args.mode == 'publish':
                 print('Published topic %s: %s\n' % (topic, messageJson))
             loopCount += 1  	    
-     time.sleep(30)
+     time.sleep(300)
