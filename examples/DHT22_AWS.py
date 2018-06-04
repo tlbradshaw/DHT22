@@ -176,6 +176,4 @@ while True:
                     print('Published topic %s: %s\n' % (topic, json_body))
                 loopCount += 1  	
         except:
-           
-
      time.sleep(30)
