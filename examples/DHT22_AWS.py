@@ -168,12 +168,10 @@ while True:
                     "Humidity": humidity
                 }
              }
-        ]         
-        try:
-            if args.mode == 'both' or args.mode == 'publish':                                
-                myAWSIoTMQTTClient.publish(topic, json_body, 1)
-                if args.mode == 'publish':
-                    print('Published topic %s: %s\n' % (topic, json_body))
-                loopCount += 1  	
-        except:
+        ]                 
+        if args.mode == 'both' or args.mode == 'publish':                                
+            myAWSIoTMQTTClient.publish(topic, json_body, 1)
+            if args.mode == 'publish':
+                print('Published topic %s: %s\n' % (topic, json_body))
+            loopCount += 1  	    
      time.sleep(30)
