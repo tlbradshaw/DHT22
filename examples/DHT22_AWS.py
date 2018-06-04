@@ -170,13 +170,12 @@ while True:
              }
         ]         
         try:
-            if args.mode == 'both' or args.mode == 'publish':                
-                messageJson = json.dumps(message)
+            if args.mode == 'both' or args.mode == 'publish':                                
                 myAWSIoTMQTTClient.publish(topic, json_body, 1)
                 if args.mode == 'publish':
                     print('Published topic %s: %s\n' % (topic, json_body))
                 loopCount += 1  	
         except:
-           pass
+           
 
      time.sleep(30)
