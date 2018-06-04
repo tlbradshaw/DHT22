@@ -25,7 +25,7 @@ import time
 import sys
 import datetime
 from Adafruit_IO import *
-
+from influxdb import InfluxDBClient
 
 def connected(client):
 	print('Connected to Adafruit IO!')
@@ -44,6 +44,20 @@ def clean_DH(humid, temp):
         
 	
 	return humid, temp
+
+def write_to_influx(json):
+    """Writes values to Influx database"""
+    host='localhost'
+    port = 8086
+    user = 'root'
+    password = 'root'
+    dbname = 'OfficeTemp'
+
+    client = InfluxDBClient(host, port, user, password, dbname)
+
+    client.create_database(dbname)
+
+    client.write_points(json)
     
 
 # Sensor should be set to Adafruit_DHT.DHT11,
@@ -97,9 +111,26 @@ while True:
              except:
                 pass           
         else:
-            aio.send('office-temperature',temperature)
-            aio.send('office-humidity', humidity)
-             
+            try:
+               aio.send('office-temperature',temperature)
+               aio.send('office-humidity', humidity)
+            except:
+               pass
+        json_body = [
+             {
+                "measurement": "office-temperature",
+                "tags": {
+                    "location": "office"
+                },
+                "fields": {
+                    "Temperature": temperature,
+                    "Humidity": humidity
+                }
+             }
+        ]         
+        try:
+           write_to_influx(json_body)
+        except:
+           pass
 
-	
      time.sleep(300)
