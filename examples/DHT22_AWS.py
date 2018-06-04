@@ -24,11 +24,90 @@ import Adafruit_DHT
 import time
 import sys
 import datetime
-from Adafruit_IO import *
-from influxdb import InfluxDBClient
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+import logging
+import argparse
+import json
 
-def connected(client):
-	print('Connected to Adafruit IO!')
+AllowedActions = ['both', 'publish', 'subscribe']
+
+# Custom MQTT message callback
+def customCallback(client, userdata, message):
+    print("Received a new message: ")
+    print(message.payload)
+    print("from topic: ")
+    print(message.topic)
+    print("--------------\n\n")
+
+
+# Read in command-line parameters
+parser = argparse.ArgumentParser()
+parser.add_argument("-e", "--endpoint", action="store", required=True, dest="host", help="Your AWS IoT custom endpoint")
+parser.add_argument("-r", "--rootCA", action="store", required=True, dest="rootCAPath", help="Root CA file path")
+parser.add_argument("-c", "--cert", action="store", dest="certificatePath", help="Certificate file path")
+parser.add_argument("-k", "--key", action="store", dest="privateKeyPath", help="Private key file path")
+parser.add_argument("-w", "--websocket", action="store_true", dest="useWebsocket", default=False,
+                    help="Use MQTT over WebSocket")
+parser.add_argument("-id", "--clientId", action="store", dest="clientId", default="basicPubSub",
+                    help="Targeted client id")
+parser.add_argument("-t", "--topic", action="store", dest="topic", default="sdk/test/DHT22", help="Targeted topic")
+parser.add_argument("-m", "--mode", action="store", dest="mode", default="both",
+                    help="Operation modes: %s"%str(AllowedActions))
+parser.add_argument("-M", "--message", action="store", dest="message", default="Hello World!",
+                    help="Message to publish")
+
+args = parser.parse_args()
+host = args.host
+rootCAPath = args.rootCAPath
+certificatePath = args.certificatePath
+privateKeyPath = args.privateKeyPath
+useWebsocket = args.useWebsocket
+clientId = args.clientId
+topic = args.topic
+
+if args.mode not in AllowedActions:
+    parser.error("Unknown --mode option %s. Must be one of %s" % (args.mode, str(AllowedActions)))
+    exit(2)
+
+if args.useWebsocket and args.certificatePath and args.privateKeyPath:
+    parser.error("X.509 cert authentication and WebSocket are mutual exclusive. Please pick one.")
+    exit(2)
+
+if not args.useWebsocket and (not args.certificatePath or not args.privateKeyPath):
+    parser.error("Missing credentials for authentication.")
+    exit(2)
+
+# Configure logging
+logger = logging.getLogger("AWSIoTPythonSDK.core")
+logger.setLevel(logging.DEBUG)
+streamHandler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+streamHandler.setFormatter(formatter)
+logger.addHandler(streamHandler)
+
+# Init AWSIoTMQTTClient
+myAWSIoTMQTTClient = None
+if useWebsocket:
+    myAWSIoTMQTTClient = AWSIoTMQTTClient(clientId, useWebsocket=True)
+    myAWSIoTMQTTClient.configureEndpoint(host, 443)
+    myAWSIoTMQTTClient.configureCredentials(rootCAPath)
+else:
+    myAWSIoTMQTTClient = AWSIoTMQTTClient(clientId)
+    myAWSIoTMQTTClient.configureEndpoint(host, 8883)
+    myAWSIoTMQTTClient.configureCredentials(rootCAPath, privateKeyPath, certificatePath)
+
+# AWSIoTMQTTClient connection configuration
+myAWSIoTMQTTClient.configureAutoReconnectBackoffTime(1, 32, 20)
+myAWSIoTMQTTClient.configureOfflinePublishQueueing(-1)  # Infinite offline Publish queueing
+myAWSIoTMQTTClient.configureDrainingFrequency(2)  # Draining: 2 Hz
+myAWSIoTMQTTClient.configureConnectDisconnectTimeout(10)  # 10 sec
+myAWSIoTMQTTClient.configureMQTTOperationTimeout(5)  # 5 sec
+
+# Connect and subscribe to AWS IoT
+myAWSIoTMQTTClient.connect()
+if args.mode == 'both' or args.mode == 'subscribe':
+    myAWSIoTMQTTClient.subscribe(topic, 1, customCallback)
+time.sleep(2)
     
 def clean_DH(humid, temp):    
 	if temp < 80 and temp > -40:
@@ -45,30 +124,12 @@ def clean_DH(humid, temp):
 	
 	return humid, temp
 
-def write_to_influx(json):
-    """Writes values to Influx database"""
-    host='localhost'
-    port = 8086
-    user = 'root'
-    password = 'root'
-    dbname = 'OfficeTemp'
-
-    client = InfluxDBClient(host, port, user, password, dbname)
-
-    client.create_database(dbname)
-
-    client.write_points(json)
     
 
 # Sensor should be set to Adafruit_DHT.DHT11,
 # Adafruit_DHT.DHT22, or Adafruit_DHT.AM2302.
 sensor = Adafruit_DHT.DHT22
-aio = Client('4551326023d44215bc73c6367ad1b8f0')
-mqtt = MQTTClient('tlbradshaw','4551326023d44215bc73c6367ad1b8f0')
 
-connection_type = 'mqtt_pub'
-
-mqtt.on_connect = connected
 
 # Example using a Beaglebone Black with DHT sensor
 # connected to pin P8_11.
@@ -78,19 +139,10 @@ mqtt.on_connect = connected
 # connected to GPIO23.
 pin = 17
 
-try:
-#	print('Attempting to connect')
-	mqtt.connect()
-	mqtt.loop_background()
-except:
-#	print('Error Connecting')
-	connection_type = 'api_pub'
-	pass	
-
 
 # Try to grab a sensor reading.  Use the read_retry method which will retry up
 # to 15 times to get a sensor reading (waiting 2 seconds between each retry).
-
+loopCount = 0
 while True:
 
      humidity, temperature = Adafruit_DHT.read_retry(sensor, pin)
@@ -103,24 +155,13 @@ while True:
      # the results will be null (because Linux can't
      # guarantee the timing of calls to read the sensor).
      # If this happens try again!
-     if humidity is not None and temperature is not None:
-	if connection_type == 'mqtt_pub':
-             try:
-                mqtt.publish('office-temperature', temperature)
-                mqtt.publish('office-humidity', humidity)
-             except:
-                pass           
-        else:
-            try:
-               aio.send('office-temperature',temperature)
-               aio.send('office-humidity', humidity)
-            except:
-               pass
+     if humidity is not None and temperature is not None:	
         json_body = [
              {
-                "measurement": "office-temperature",
+                "measurement": "Envirionment",
                 "tags": {
-                    "location": "office"
+                    "location": "office",
+                    "thing": "Pi_1"
                 },
                 "fields": {
                     "Temperature": temperature,
@@ -129,7 +170,12 @@ while True:
              }
         ]         
         try:
-           write_to_influx(json_body)
+            if args.mode == 'both' or args.mode == 'publish':                
+                messageJson = json.dumps(message)
+                myAWSIoTMQTTClient.publish(topic, json_body, 1)
+                    if args.mode == 'publish':
+                        print('Published topic %s: %s\n' % (topic, json_body))
+                loopCount += 1  	
         except:
            pass
 
