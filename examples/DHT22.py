@@ -25,7 +25,9 @@ import time
 import sys
 import datetime
 from Adafruit_IO import *
-from influxdb import InfluxDBClient
+#from influxdb import InfluxDBClient
+
+verbose = 1
 
 def connected(client):
 	print('Connected to Adafruit IO!')
@@ -45,19 +47,19 @@ def clean_DH(humid, temp):
 	
 	return humid, temp
 
-def write_to_influx(json):
-    """Writes values to Influx database"""
-    host='localhost'
-    port = 8086
-    user = 'root'
-    password = 'root'
-    dbname = 'OfficeTemp'
+# def write_to_influx(json):
+#    """Writes values to Influx database"""
+#    host='localhost'
+#    port = 8086
+#    user = 'root'
+#    password = 'root'
+#    dbname = 'OfficeTemp'
 
-    client = InfluxDBClient(host, port, user, password, dbname)
+#    client = InfluxDBClient(host, port, user, password, dbname)
 
-    client.create_database(dbname)
+#    client.create_database(dbname)
 
-    client.write_points(json)
+#    client.write_points(json)
     
 
 # Sensor should be set to Adafruit_DHT.DHT11,
@@ -92,12 +94,16 @@ except:
 # to 15 times to get a sensor reading (waiting 2 seconds between each retry).
 
 while True:
-
+     print('Getting values...')
      humidity, temperature = Adafruit_DHT.read_retry(sensor, pin)
+     print('Values received.')
+
      #temperature = temperature * 1.8 + 32
      #temperature = round(temperature, 1)
      #humidity = round(humidity, 1)
+#     print('Cleaning values...')
      humidity, temperature = clean_DH(humidity, temperature)
+#     print('Values cleaned.')
 
      # Note that sometimes you won't get a reading and
      # the results will be null (because Linux can't
@@ -106,16 +112,26 @@ while True:
      if humidity is not None and temperature is not None:
 	if connection_type == 'mqtt_pub':
              try:
-                mqtt.publish('office-temperature', temperature)
-                mqtt.publish('office-humidity', humidity)
+                mqtt.publish('home-temperature', te6mperature)
+                mqtt.publish('home-humidity', humidity)
+		if verbose:
+			print('temp: ' +  temperature)
+			print('humidity: ' +  humidity)
              except:
+		if verbose:
+			print('MQTT Publish Failed.')
                 pass           
         else:
             try:
-               aio.send('office-temperature',temperature)
-               aio.send('office-humidity', humidity)
+		aio.send('office-temperature',temperature)
+		aio.send('office-humidity', humidity)
+		if verbose:
+			print('temp: ' +  temperature)
+			print('humidity: ' +  humidity)
             except:
-               pass
+		if verbose:
+			print('AIO Publish Failed.')
+		pass
         json_body = [
              {
                 "measurement": "office-temperature",
@@ -128,9 +144,9 @@ while True:
                 }
              }
         ]         
-        try:
-           write_to_influx(json_body)
-        except:
-           pass
+#        try:
+#           write_to_influx(json_body)
+#        except:
+#           pass
 
      time.sleep(300)
